@@ -1,0 +1,29 @@
+fastapi==0.111.0
+uvicorn[standard]==0.30.1
+pydantic==2.7.1
+pydantic-settings==2.3.0
+
+# Kafka
+confluent-kafka==2.4.0
+
+# Database
+sqlalchemy==2.0.30
+psycopg2-binary==2.9.9
+alembic==1.13.1
+
+# Redis
+redis==5.0.4
+
+# AI / ML
+numpy==1.26.4
+scikit-learn==1.5.0
+
+# HTTP
+httpx==0.27.0
+
+# Utilities
+python-dotenv==1.0.1
+structlog==24.2.0
+
+# Optional: OpenAI integration
+# openai==1.30.0
