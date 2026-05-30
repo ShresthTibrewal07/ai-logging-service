@@ -45,7 +45,7 @@ flowchart LR
     K --> L
     H --> L
 
-    B --> M[/metrics]
+    B --> M[/metrics/]
     M --> N[Prometheus]
     N --> O[Grafana]
 
