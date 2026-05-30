@@ -1,0 +1,822 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AI Log Monitor — Interview Demo</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<style>
+:root {
+  --bg:       #0d1117;
+  --surface:  #161b22;
+  --surface2: #21262d;
+  --border:   #30363d;
+  --text:     #e6edf3;
+  --muted:    #8b949e;
+  --blue:     #58a6ff;
+  --green:    #3fb950;
+  --yellow:   #d29922;
+  --orange:   #f0883e;
+  --red:      #f85149;
+  --purple:   #bc8cff;
+  --teal:     #39d353;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { background: var(--bg); color: var(--text); font-family: -apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif; font-size: 13px; }
+
+/* ── Header ── */
+.header { background: var(--surface); border-bottom: 1px solid var(--border); padding: 14px 24px; display: flex; align-items: center; justify-content: space-between; position: sticky; top: 0; z-index: 100; }
+.logo { display: flex; align-items: center; gap: 10px; font-size: 15px; font-weight: 600; }
+.logo-dot { width: 10px; height: 10px; border-radius: 50%; background: var(--green); box-shadow: 0 0 8px var(--green); animation: pulse 2s infinite; }
+@keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.4} }
+.header-right { display: flex; align-items: center; gap: 12px; }
+.status-pill { padding: 4px 10px; border-radius: 100px; font-size: 11px; font-weight: 500; }
+.pill-ok { background: #1a3a1f; color: var(--green); border: 1px solid #2d5c34; }
+.pill-err { background: #3a1a1a; color: var(--red); border: 1px solid #5c2d2d; }
+.base-url { font-size: 11px; color: var(--muted); font-family: monospace; }
+
+/* ── Stat cards ── */
+.stat-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; padding: 20px 24px 0; }
+.stat-card { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 16px; }
+.stat-label { color: var(--muted); font-size: 11px; text-transform: uppercase; letter-spacing: .06em; }
+.stat-value { font-size: 32px; font-weight: 700; margin: 6px 0 2px; font-variant-numeric: tabular-nums; }
+.stat-sub { font-size: 11px; color: var(--muted); }
+.c-blue { color: var(--blue); } .c-red { color: var(--red); } .c-orange { color: var(--orange); } .c-purple { color: var(--purple); }
+
+/* ── Tabs ── */
+.tabs { display: flex; gap: 2px; padding: 16px 24px 0; border-bottom: 1px solid var(--border); margin: 16px 0 0; }
+.tab { padding: 8px 16px; border-radius: 6px 6px 0 0; cursor: pointer; color: var(--muted); font-size: 13px; border: 1px solid transparent; border-bottom: none; transition: all .15s; }
+.tab:hover { color: var(--text); }
+.tab.active { background: var(--surface); border-color: var(--border); color: var(--text); font-weight: 500; margin-bottom: -1px; }
+.tab-badge { background: var(--surface2); border-radius: 100px; padding: 1px 7px; font-size: 10px; margin-left: 6px; }
+.tab-badge.red { background: #3a1a1a; color: var(--red); }
+
+/* ── Content ── */
+.content { padding: 20px 24px; }
+.panel { display: none; } .panel.active { display: block; }
+
+/* ── Charts ── */
+.chart-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 16px; }
+.chart-card { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 16px; }
+.chart-title { font-size: 12px; font-weight: 500; color: var(--muted); margin-bottom: 12px; text-transform: uppercase; letter-spacing: .05em; }
+.chart-wrap { position: relative; height: 180px; }
+
+/* ── Log table ── */
+.log-table-wrap { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; overflow: hidden; }
+.log-table-header { padding: 12px 16px; border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; }
+.log-table-title { font-size: 12px; font-weight: 500; color: var(--muted); text-transform: uppercase; letter-spacing: .05em; }
+.log-stream { max-height: 420px; overflow-y: auto; font-family: 'SF Mono','Fira Code',monospace; font-size: 12px; }
+.log-row { padding: 8px 16px; border-bottom: 1px solid var(--border); display: grid; grid-template-columns: 70px 100px 130px 1fr auto; gap: 12px; align-items: center; transition: background .1s; }
+.log-row:hover { background: var(--surface2); }
+.log-time { color: var(--muted); font-size: 11px; }
+.log-level { font-size: 11px; font-weight: 600; padding: 2px 6px; border-radius: 4px; text-align: center; }
+.lv-DEBUG   { background:#1c2333;color:#8b949e; }
+.lv-INFO    { background:#0d2137;color:#58a6ff; }
+.lv-WARN    { background:#2d2008;color:#d29922; }
+.lv-ERROR   { background:#3a1a1a;color:#f85149; }
+.lv-CRITICAL{ background:#4a0e0e;color:#ff6b6b;animation:pulse 1s infinite; }
+.log-svc { color: var(--purple); }
+.log-msg { color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.anomaly-badge { font-size: 10px; padding: 2px 6px; background:#3a1a1a; color:var(--red); border-radius: 4px; white-space: nowrap; }
+
+/* ── Filters ── */
+.filter-row { display: flex; gap: 8px; margin-bottom: 12px; align-items: center; flex-wrap: wrap; }
+.filter-select, .filter-input { background: var(--surface); border: 1px solid var(--border); color: var(--text); border-radius: 6px; padding: 6px 10px; font-size: 12px; }
+.filter-select:focus, .filter-input:focus { outline: none; border-color: var(--blue); }
+
+/* ── Buttons ── */
+.btn { padding: 7px 14px; border-radius: 6px; font-size: 12px; cursor: pointer; border: 1px solid; transition: all .15s; font-weight: 500; }
+.btn-primary { background: var(--blue); border-color: var(--blue); color: #0d1117; }
+.btn-primary:hover { opacity: .85; }
+.btn-danger  { background: transparent; border-color: var(--red); color: var(--red); }
+.btn-danger:hover { background: #3a1a1a; }
+.btn-success { background: transparent; border-color: var(--green); color: var(--green); }
+.btn-success:hover { background: #1a3a1f; }
+.btn-ghost   { background: transparent; border-color: var(--border); color: var(--muted); }
+.btn-ghost:hover { color: var(--text); border-color: var(--muted); }
+.btn-demo { background: linear-gradient(135deg, #7c3aed, #3b82f6); border: none; color: white; padding: 9px 20px; font-size: 13px; border-radius: 6px; cursor: pointer; font-weight: 600; }
+.btn-demo:hover { opacity: .9; }
+
+/* ── Alert card ── */
+.alert-card { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 14px 16px; margin-bottom: 8px; display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
+.alert-card.crit { border-left: 3px solid var(--red); }
+.alert-card.high { border-left: 3px solid var(--orange); }
+.alert-card.med  { border-left: 3px solid var(--yellow); }
+.alert-sev { font-size: 10px; font-weight: 700; padding: 2px 8px; border-radius: 4px; }
+.sev-CRITICAL{ background:#4a0e0e;color:#ff6b6b; }
+.sev-HIGH   { background:#3a2008;color:#f0883e; }
+.sev-MEDIUM { background:#2d2008;color:#d29922; }
+.alert-msg  { font-size: 13px; color: var(--text); margin: 4px 0; }
+.alert-meta { font-size: 11px; color: var(--muted); }
+.alert-actions { display: flex; gap: 6px; flex-shrink: 0; }
+
+/* ── DLQ ── */
+.dlq-card { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 14px 16px; margin-bottom: 8px; }
+.dlq-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; }
+.dlq-topic { font-family: monospace; font-size: 11px; color: var(--orange); }
+.dlq-err { font-size: 12px; color: var(--muted); margin: 4px 0; }
+.dlq-payload { font-family: monospace; font-size: 11px; background: var(--surface2); border-radius: 4px; padding: 8px; color: var(--muted); max-height: 80px; overflow: auto; }
+
+/* ── Send log form ── */
+.form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.form-group { display: flex; flex-direction: column; gap: 5px; }
+.form-label { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: .05em; }
+.form-input, .form-select, .form-textarea { background: var(--surface2); border: 1px solid var(--border); color: var(--text); border-radius: 6px; padding: 8px 10px; font-size: 13px; width: 100%; }
+.form-input:focus,.form-select:focus,.form-textarea:focus { outline: none; border-color: var(--blue); }
+.form-textarea { min-height: 80px; resize: vertical; font-family: inherit; }
+.form-full { grid-column: 1/-1; }
+.form-actions { display: flex; gap: 8px; margin-top: 4px; }
+.response-box { background: var(--surface2); border: 1px solid var(--border); border-radius: 6px; padding: 12px; font-family: monospace; font-size: 12px; color: var(--green); max-height: 160px; overflow-y: auto; white-space: pre-wrap; margin-top: 12px; }
+
+/* ── AI panel ── */
+.ai-card { background: linear-gradient(135deg, #1a1033 0%, #0d1a2d 100%); border: 1px solid #3d2e6e; border-radius: 8px; padding: 20px; margin-bottom: 12px; }
+.ai-header { display: flex; align-items: center; gap: 8px; margin-bottom: 14px; }
+.ai-icon { font-size: 18px; }
+.ai-title { font-size: 14px; font-weight: 600; color: var(--purple); }
+.ai-field { margin-bottom: 10px; }
+.ai-field-label { font-size: 10px; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); margin-bottom: 4px; }
+.ai-field-value { font-size: 13px; color: var(--text); }
+.ai-list { list-style: none; }
+.ai-list li { padding: 3px 0; color: var(--text); font-size: 13px; }
+.ai-list li::before { content: "→ "; color: var(--purple); }
+.ai-services { display: flex; gap: 6px; flex-wrap: wrap; }
+.ai-service-tag { background: #2d1f5e; color: var(--purple); padding: 2px 8px; border-radius: 4px; font-size: 11px; }
+.confidence-bar { height: 6px; background: var(--surface2); border-radius: 3px; overflow: hidden; margin-top: 4px; }
+.confidence-fill { height: 100%; background: linear-gradient(90deg, var(--purple), var(--blue)); border-radius: 3px; transition: width .5s; }
+.sev-tag { padding: 3px 10px; border-radius: 100px; font-size: 11px; font-weight: 600; }
+.sev-CRITICAL{ background:#4a0e0e;color:#ff6b6b; }
+.sev-HIGH { background:#3a2008;color:#f0883e; }
+.sev-MEDIUM{ background:#2d2008;color:#d29922; }
+.sev-LOW  { background:#1a3a1f;color:#3fb950; }
+
+/* ── Demo scenario bar ── */
+.demo-bar { background: linear-gradient(135deg, #1a0d33, #0d1a2d); border: 1px solid #3d2e6e; border-radius: 8px; padding: 14px 16px; display: flex; align-items: center; gap: 16px; margin-bottom: 16px; flex-wrap: wrap; }
+.demo-label { color: var(--purple); font-size: 12px; font-weight: 600; }
+.demo-scenarios { display: flex; gap: 8px; flex-wrap: wrap; }
+.demo-btn { padding: 5px 12px; border-radius: 6px; font-size: 12px; cursor: pointer; border: 1px solid; transition: all .15s; }
+.demo-btn.normal { border-color: var(--green); color: var(--green); background: transparent; }
+.demo-btn.normal:hover { background: #1a3a1f; }
+.demo-btn.spike  { border-color: var(--orange); color: var(--orange); background: transparent; }
+.demo-btn.spike:hover  { background: #3a2008; }
+.demo-btn.crisis { border-color: var(--red); color: var(--red); background: transparent; }
+.demo-btn.crisis:hover { background: #3a1a1a; }
+
+/* ── Empty state ── */
+.empty { text-align: center; padding: 48px 16px; color: var(--muted); }
+.empty-icon { font-size: 32px; margin-bottom: 8px; }
+
+/* ── Misc ── */
+.refresh-info { font-size: 11px; color: var(--muted); }
+.section-title { font-size: 11px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); margin-bottom: 10px; }
+.loading { color: var(--muted); font-style: italic; padding: 20px; text-align: center; }
+.toast { position: fixed; bottom: 20px; right: 20px; background: var(--surface2); border: 1px solid var(--border); border-radius: 8px; padding: 10px 16px; font-size: 13px; z-index: 999; animation: slide-in .2s ease; max-width: 300px; }
+@keyframes slide-in { from{transform:translateY(20px);opacity:0} to{transform:translateY(0);opacity:1} }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div class="logo">
+    <div class="logo-dot" id="liveDot"></div>
+    AI Log Monitoring System
+  </div>
+  <div class="header-right">
+    <span class="base-url" id="baseUrlLabel">http://localhost:8000</span>
+    <span class="status-pill pill-err" id="apiStatus">Connecting…</span>
+    <span class="refresh-info" id="lastRefresh"></span>
+  </div>
+</div>
+
+<!-- Stat cards -->
+<div class="stat-grid">
+  <div class="stat-card">
+    <div class="stat-label">Total Logs</div>
+    <div class="stat-value c-blue" id="statTotal">—</div>
+    <div class="stat-sub">all time</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-label">Anomalies</div>
+    <div class="stat-value c-red" id="statAnomalies">—</div>
+    <div class="stat-sub">AI detected</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-label">Active Alerts</div>
+    <div class="stat-value c-orange" id="statAlerts">—</div>
+    <div class="stat-sub">unacknowledged</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-label">DLQ</div>
+    <div class="stat-value c-purple" id="statDLQ">—</div>
+    <div class="stat-sub">unresolved</div>
+  </div>
+</div>
+
+<!-- Demo bar -->
+<div style="padding: 16px 24px 0;">
+  <div class="demo-bar">
+    <span class="demo-label">🎬 Demo Scenarios</span>
+    <div class="demo-scenarios">
+      <button class="demo-btn normal" onclick="runScenario('normal')">Normal Traffic (20 logs)</button>
+      <button class="demo-btn spike"  onclick="runScenario('spike')">Error Spike (trigger anomaly)</button>
+      <button class="demo-btn crisis" onclick="runScenario('crisis')">Full Crisis (OOM + deadlock + DLQ)</button>
+    </div>
+    <span id="scenarioStatus" style="font-size:11px;color:var(--muted)"></span>
+  </div>
+</div>
+
+<!-- Tabs -->
+<div class="tabs">
+  <div class="tab active" onclick="switchTab('overview', this)">Overview</div>
+  <div class="tab" onclick="switchTab('logs', this)">Live Logs <span class="tab-badge" id="logsBadge">0</span></div>
+  <div class="tab" onclick="switchTab('anomalies', this)">Anomalies <span class="tab-badge red" id="anomBadge">0</span></div>
+  <div class="tab" onclick="switchTab('alerts', this)">Alerts <span class="tab-badge red" id="alertBadge">0</span></div>
+  <div class="tab" onclick="switchTab('dlq', this)">DLQ <span class="tab-badge red" id="dlqBadge">0</span></div>
+  <div class="tab" onclick="switchTab('send', this)">Send Log</div>
+  <div class="tab" onclick="switchTab('ai', this)">AI Summary</div>
+</div>
+
+<!-- OVERVIEW -->
+<div class="content">
+<div id="panel-overview" class="panel active">
+  <div class="chart-grid">
+    <div class="chart-card">
+      <div class="chart-title">Logs by Level (last hour)</div>
+      <div class="chart-wrap"><canvas id="chartLevel"></canvas></div>
+    </div>
+    <div class="chart-card">
+      <div class="chart-title">Logs by Service (last hour)</div>
+      <div class="chart-wrap"><canvas id="chartService"></canvas></div>
+    </div>
+    <div class="chart-card">
+      <div class="chart-title">Error Rate Over Time</div>
+      <div class="chart-wrap"><canvas id="chartErrorRate"></canvas></div>
+    </div>
+    <div class="chart-card">
+      <div class="chart-title">Anomaly Score Distribution</div>
+      <div class="chart-wrap"><canvas id="chartAnomaly"></canvas></div>
+    </div>
+  </div>
+</div>
+
+<!-- LOGS -->
+<div id="panel-logs" class="panel">
+  <div class="filter-row">
+    <select class="filter-select" id="filterService" onchange="loadLogs()">
+      <option value="">All services</option>
+      <option>payment-service</option>
+      <option>auth-service</option>
+      <option>order-service</option>
+      <option>notification-service</option>
+      <option>inventory-service</option>
+    </select>
+    <select class="filter-select" id="filterLevel" onchange="loadLogs()">
+      <option value="">All levels</option>
+      <option>DEBUG</option><option>INFO</option><option>WARN</option><option>ERROR</option><option>CRITICAL</option>
+    </select>
+    <button class="btn btn-ghost" onclick="loadLogs()">Refresh</button>
+    <span class="refresh-info">Auto-refresh every 5s</span>
+  </div>
+  <div class="log-table-wrap">
+    <div class="log-table-header">
+      <span class="log-table-title">Log Stream</span>
+      <span class="refresh-info" id="logsCount"></span>
+    </div>
+    <div class="log-stream" id="logStream"><div class="loading">Loading…</div></div>
+  </div>
+</div>
+
+<!-- ANOMALIES -->
+<div id="panel-anomalies" class="panel">
+  <div class="filter-row">
+    <select class="filter-select" id="anomWindow">
+      <option value="60">Last 60 min</option>
+      <option value="360">Last 6 hours</option>
+      <option value="1440">Last 24 hours</option>
+    </select>
+    <button class="btn btn-ghost" onclick="loadAnomalies()">Refresh</button>
+  </div>
+  <div id="anomalyList"><div class="loading">Loading…</div></div>
+</div>
+
+<!-- ALERTS -->
+<div id="panel-alerts" class="panel">
+  <div class="filter-row">
+    <button class="btn btn-ghost" onclick="loadAlerts()">Refresh</button>
+    <span class="refresh-info">Alerts fire when anomaly score ≥ 0.5 or error rate spikes</span>
+  </div>
+  <div id="alertList"><div class="loading">Loading…</div></div>
+</div>
+
+<!-- DLQ -->
+<div id="panel-dlq" class="panel">
+  <div class="filter-row">
+    <button class="btn btn-ghost" onclick="loadDLQ()">Refresh</button>
+    <span class="refresh-info">Messages that failed all 3 retries land here</span>
+  </div>
+  <div id="dlqList"><div class="loading">Loading…</div></div>
+</div>
+
+<!-- SEND LOG -->
+<div id="panel-send" class="panel">
+  <div style="max-width:680px">
+    <div class="section-title">Send a single log to the ingestion API</div>
+    <div class="form-grid">
+      <div class="form-group">
+        <label class="form-label">Service Name</label>
+        <input class="form-input" id="fService" value="payment-service" list="serviceList">
+        <datalist id="serviceList">
+          <option>payment-service</option><option>auth-service</option>
+          <option>order-service</option><option>notification-service</option>
+          <option>inventory-service</option>
+        </datalist>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Level</label>
+        <select class="form-select" id="fLevel">
+          <option>DEBUG</option><option>INFO</option><option>WARN</option>
+          <option selected>ERROR</option><option>CRITICAL</option>
+        </select>
+      </div>
+      <div class="form-group form-full">
+        <label class="form-label">Message</label>
+        <textarea class="form-textarea" id="fMessage">Database unavailable — connection pool exhausted</textarea>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Trace ID (optional)</label>
+        <input class="form-input" id="fTraceId" placeholder="trace-abc123">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Environment</label>
+        <select class="form-select" id="fEnv">
+          <option>production</option><option>staging</option><option>development</option>
+        </select>
+      </div>
+    </div>
+    <div class="form-actions" style="margin-top:14px">
+      <button class="btn btn-primary" onclick="sendLog()">POST /logs</button>
+      <button class="btn btn-ghost" onclick="prefillAnomaly()">Prefill anomaly example</button>
+    </div>
+    <div id="sendResponse" class="response-box" style="display:none"></div>
+  </div>
+</div>
+
+<!-- AI SUMMARY -->
+<div id="panel-ai" class="panel">
+  <div style="max-width:720px">
+    <div class="filter-row">
+      <select class="filter-select" id="aiWindow">
+        <option value="30">Last 30 min</option>
+        <option value="60">Last 60 min</option>
+        <option value="360">Last 6 hours</option>
+      </select>
+      <button class="btn btn-primary" onclick="loadAISummary()">Generate AI Summary</button>
+      <span class="refresh-info">Cached 5 min — first call may be slow if using OpenAI</span>
+    </div>
+    <div id="aiResult"><div class="loading">Click "Generate AI Summary" to analyse recent anomalies</div></div>
+  </div>
+</div>
+
+</div><!-- /content -->
+
+<script>
+const BASE = 'http://localhost:8000';
+let charts = {};
+let refreshTimer;
+let currentTab = 'overview';
+
+// ── Tab switching ──────────────────────────────────────────────────────────────
+function switchTab(name, tabEl) {
+  currentTab = name;
+  document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  document.getElementById('panel-' + name).classList.add('active');
+  if (tabEl) tabEl.classList.add('active');
+  if (name === 'logs')      loadLogs();
+  if (name === 'anomalies') loadAnomalies();
+  if (name === 'alerts')    loadAlerts();
+  if (name === 'dlq')       loadDLQ();
+}
+
+// ── API helpers ────────────────────────────────────────────────────────────────
+async function api(path, opts = {}) {
+  const r = await fetch(BASE + path, { ...opts, headers: { 'Content-Type': 'application/json', ...(opts.headers||{}) } });
+  if (!r.ok) throw new Error(`HTTP ${r.status}`);
+  return r.json();
+}
+
+function fmt(iso) {
+  if (!iso) return '—';
+  const d = new Date(iso);
+  return d.toLocaleTimeString('en-US', { hour12: false });
+}
+
+function toast(msg, err = false) {
+  const t = document.createElement('div');
+  t.className = 'toast';
+  t.style.borderColor = err ? 'var(--red)' : 'var(--green)';
+  t.textContent = msg;
+  document.body.appendChild(t);
+  setTimeout(() => t.remove(), 3000);
+}
+
+// ── Health + stats polling ─────────────────────────────────────────────────────
+async function pollHealth() {
+  try {
+    const h = await api('/health');
+    const ok = h.status === 'ok';
+    const el = document.getElementById('apiStatus');
+    el.textContent = ok ? '● Connected' : '⚠ Degraded';
+    el.className = 'status-pill ' + (ok ? 'pill-ok' : 'pill-err');
+    document.getElementById('liveDot').style.background = ok ? 'var(--green)' : 'var(--red)';
+  } catch {
+    const el = document.getElementById('apiStatus');
+    el.textContent = '✕ Offline';
+    el.className = 'status-pill pill-err';
+    document.getElementById('liveDot').style.background = 'var(--red)';
+  }
+}
+
+async function pollStats() {
+  try {
+    const s = await api('/stats');
+    document.getElementById('statTotal').textContent     = s.total_logs.toLocaleString();
+    document.getElementById('statAnomalies').textContent = s.total_anomalies.toLocaleString();
+    document.getElementById('statAlerts').textContent    = s.active_alerts.toLocaleString();
+    document.getElementById('statDLQ').textContent       = s.dlq_unresolved.toLocaleString();
+    document.getElementById('alertBadge').textContent    = s.active_alerts;
+    document.getElementById('alertBadge').className      = 'tab-badge' + (s.active_alerts > 0 ? ' red' : '');
+    document.getElementById('dlqBadge').textContent      = s.dlq_unresolved;
+    document.getElementById('dlqBadge').className        = 'tab-badge' + (s.dlq_unresolved > 0 ? ' red' : '');
+    document.getElementById('anomBadge').textContent     = s.total_anomalies;
+    document.getElementById('anomBadge').className       = 'tab-badge' + (s.total_anomalies > 0 ? ' red' : '');
+    document.getElementById('lastRefresh').textContent   = 'Updated ' + new Date().toLocaleTimeString();
+  } catch {}
+}
+
+// ── Charts ─────────────────────────────────────────────────────────────────────
+const LEVEL_COLORS = { DEBUG:'#8b949e', INFO:'#58a6ff', WARN:'#d29922', ERROR:'#f85149', CRITICAL:'#ff2222' };
+const SVC_COLORS   = ['#58a6ff','#bc8cff','#3fb950','#f0883e','#39d353','#f85149'];
+
+async function refreshCharts() {
+  try {
+    const metrics = await api('/logs/metrics/summary?since_minutes=60');
+    buildLevelChart(metrics);
+    buildServiceChart(metrics);
+    buildErrorRateChart(metrics);
+  } catch {}
+  try {
+    const anoms = await api('/logs/anomalies?since_minutes=60&limit=100');
+    buildAnomalyChart(anoms);
+  } catch {}
+}
+
+function buildLevelChart(metrics) {
+  const counts = {};
+  metrics.forEach(m => { counts[m.level] = (counts[m.level] || 0) + m.count; });
+  const labels = Object.keys(counts);
+  const data   = labels.map(l => counts[l]);
+  const colors = labels.map(l => LEVEL_COLORS[l] || '#8b949e');
+  renderDoughnut('chartLevel', labels, data, colors);
+}
+
+function buildServiceChart(metrics) {
+  const counts = {};
+  metrics.forEach(m => { counts[m.service_name] = (counts[m.service_name] || 0) + m.count; });
+  const labels = Object.keys(counts);
+  const data   = labels.map(s => counts[s]);
+  renderDoughnut('chartService', labels, data, SVC_COLORS);
+}
+
+function buildErrorRateChart(metrics) {
+  const byBucket = {};
+  metrics.filter(m => m.level === 'ERROR' || m.level === 'CRITICAL').forEach(m => {
+    const t = new Date(m.bucket).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false });
+    byBucket[t] = (byBucket[t] || 0) + m.count;
+  });
+  const labels = Object.keys(byBucket).slice(-20);
+  const data   = labels.map(l => byBucket[l]);
+  renderLine('chartErrorRate', labels, data, 'Errors', '#f85149');
+}
+
+function buildAnomalyChart(anoms) {
+  const buckets = { '0.0-0.5': 0, '0.5-0.7': 0, '0.7-0.9': 0, '0.9-1.0': 0 };
+  anoms.forEach(a => {
+    const s = a.anomaly_score || 0;
+    if (s < 0.5) buckets['0.0-0.5']++;
+    else if (s < 0.7) buckets['0.5-0.7']++;
+    else if (s < 0.9) buckets['0.7-0.9']++;
+    else buckets['0.9-1.0']++;
+  });
+  renderBar('chartAnomaly', Object.keys(buckets), Object.values(buckets), ['#8b949e','#d29922','#f0883e','#f85149']);
+}
+
+function chartDefaults() {
+  return {
+    responsive: true, maintainAspectRatio: false,
+    plugins: { legend: { labels: { color: '#8b949e', font: { size: 11 }, boxWidth: 12 } } },
+  };
+}
+
+function renderDoughnut(id, labels, data, colors) {
+  const canvas = document.getElementById(id);
+  if (charts[id]) charts[id].destroy();
+  charts[id] = new Chart(canvas, {
+    type: 'doughnut',
+    data: { labels, datasets: [{ data, backgroundColor: colors, borderColor: '#161b22', borderWidth: 2 }] },
+    options: { ...chartDefaults(), cutout: '60%' }
+  });
+}
+
+function renderLine(id, labels, data, label, color) {
+  const canvas = document.getElementById(id);
+  if (charts[id]) charts[id].destroy();
+  charts[id] = new Chart(canvas, {
+    type: 'line',
+    data: { labels, datasets: [{ label, data, borderColor: color, backgroundColor: color + '22', fill: true, tension: 0.4, pointRadius: 2 }] },
+    options: { ...chartDefaults(), scales: { x: { ticks: { color: '#8b949e', maxTicksLimit: 8 } }, y: { ticks: { color: '#8b949e' }, beginAtZero: true } } }
+  });
+}
+
+function renderBar(id, labels, data, colors) {
+  const canvas = document.getElementById(id);
+  if (charts[id]) charts[id].destroy();
+  charts[id] = new Chart(canvas, {
+    type: 'bar',
+    data: { labels, datasets: [{ data, backgroundColor: colors, borderRadius: 4 }] },
+    options: { ...chartDefaults(), plugins: { legend: { display: false } }, scales: { x: { ticks: { color: '#8b949e' } }, y: { ticks: { color: '#8b949e' }, beginAtZero: true } } }
+  });
+}
+
+// ── Live Logs ──────────────────────────────────────────────────────────────────
+async function loadLogs() {
+  const svc = document.getElementById('filterService').value;
+  const lvl = document.getElementById('filterLevel').value;
+  let url = '/logs?limit=80';
+  if (svc) url += `&service_name=${svc}`;
+  if (lvl) url += `&level=${lvl}`;
+  try {
+    const logs = await api(url);
+    document.getElementById('logsBadge').textContent  = logs.length;
+    document.getElementById('logsCount').textContent  = `showing ${logs.length} most recent entries`;
+    const html = logs.map(l => `
+      <div class="log-row">
+        <span class="log-time">${fmt(l.timestamp)}</span>
+        <span class="log-level lv-${l.level}">${l.level}</span>
+        <span class="log-svc">${l.service_name}</span>
+        <span class="log-msg" title="${l.message}">${l.message}</span>
+        ${l.is_anomaly ? `<span class="anomaly-badge">⚠ ${(l.anomaly_score||0).toFixed(2)}</span>` : '<span></span>'}
+      </div>`).join('');
+    document.getElementById('logStream').innerHTML = html || '<div class="empty"><div class="empty-icon">📭</div>No logs yet</div>';
+  } catch (e) {
+    document.getElementById('logStream').innerHTML = `<div class="loading" style="color:var(--red)">Error: ${e.message}</div>`;
+  }
+}
+
+// ── Anomalies ──────────────────────────────────────────────────────────────────
+async function loadAnomalies() {
+  const w = document.getElementById('anomWindow').value;
+  try {
+    const anoms = await api(`/logs/anomalies?since_minutes=${w}&limit=50`);
+    if (!anoms.length) { document.getElementById('anomalyList').innerHTML = '<div class="empty"><div class="empty-icon">✅</div>No anomalies in this window</div>'; return; }
+    const html = anoms.map(a => {
+      const score = a.anomaly_score || 0;
+      const barW  = Math.round(score * 100);
+      const col   = score > 0.9 ? 'var(--red)' : score > 0.7 ? 'var(--orange)' : 'var(--yellow)';
+      return `<div class="alert-card ${score>0.9?'crit':score>0.7?'high':'med'}">
+        <div style="flex:1">
+          <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px">
+            <span class="log-level lv-${a.level}">${a.level}</span>
+            <span class="log-svc">${a.service_name}</span>
+            <span style="font-size:11px;color:var(--muted)">${fmt(a.timestamp)}</span>
+          </div>
+          <div class="alert-msg">${a.message}</div>
+          ${a.anomaly_reason ? `<div class="alert-meta" style="margin-top:4px">Reason: ${a.anomaly_reason}</div>` : ''}
+          <div style="margin-top:8px;display:flex;align-items:center;gap:8px">
+            <span style="font-size:11px;color:var(--muted)">Score</span>
+            <div class="confidence-bar" style="flex:1"><div class="confidence-fill" style="width:${barW}%;background:${col}"></div></div>
+            <span style="font-size:11px;color:${col};font-weight:600">${score.toFixed(2)}</span>
+          </div>
+        </div>
+      </div>`;
+    }).join('');
+    document.getElementById('anomalyList').innerHTML = html;
+  } catch (e) {
+    document.getElementById('anomalyList').innerHTML = `<div class="loading" style="color:var(--red)">Error: ${e.message}</div>`;
+  }
+}
+
+// ── Alerts ────────────────────────────────────────────────────────────────────
+async function loadAlerts() {
+  try {
+    const alerts = await api('/alerts?limit=30');
+    document.getElementById('alertBadge').textContent = alerts.length;
+    if (!alerts.length) { document.getElementById('alertList').innerHTML = '<div class="empty"><div class="empty-icon">🔕</div>No active alerts</div>'; return; }
+    const html = alerts.map(a => `
+      <div class="alert-card ${a.severity==='CRITICAL'?'crit':a.severity==='HIGH'?'high':'med'}">
+        <div style="flex:1">
+          <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
+            <span class="alert-sev sev-${a.severity}">${a.severity}</span>
+            <span style="font-size:11px;font-family:monospace;color:var(--muted)">${a.alert_type}</span>
+            ${a.service_name ? `<span class="log-svc">${a.service_name}</span>` : ''}
+          </div>
+          <div class="alert-msg">${a.message}</div>
+          <div class="alert-meta">${fmt(a.triggered_at)}</div>
+        </div>
+        <div class="alert-actions">
+          <button class="btn btn-ghost" onclick="ackAlert('${a.id}')">Acknowledge</button>
+        </div>
+      </div>`).join('');
+    document.getElementById('alertList').innerHTML = html;
+  } catch (e) {
+    document.getElementById('alertList').innerHTML = `<div class="loading" style="color:var(--red)">Error: ${e.message}</div>`;
+  }
+}
+
+async function ackAlert(id) {
+  try {
+    await api(`/alerts/${id}/ack`, { method: 'POST' });
+    toast('Alert acknowledged');
+    loadAlerts();
+    pollStats();
+  } catch (e) { toast(e.message, true); }
+}
+
+// ── DLQ ───────────────────────────────────────────────────────────────────────
+async function loadDLQ() {
+  try {
+    const entries = await api('/dlq?limit=30');
+    document.getElementById('dlqBadge').textContent = entries.length;
+    if (!entries.length) { document.getElementById('dlqList').innerHTML = '<div class="empty"><div class="empty-icon">☑</div>DLQ is empty — no failed messages</div>'; return; }
+    const html = entries.map(e => `
+      <div class="dlq-card">
+        <div class="dlq-header">
+          <span class="dlq-topic">${e.original_topic}</span>
+          <button class="btn btn-success" onclick="resolveDLQ('${e.id}')">Mark Resolved</button>
+        </div>
+        <div class="dlq-err">Error: ${e.error_message}</div>
+        <div style="font-size:11px;color:var(--muted);margin:4px 0">Retry count: ${e.retry_count} | Failed: ${fmt(e.last_failed_at)}</div>
+        <div class="dlq-payload">${JSON.stringify(e.payload, null, 2)}</div>
+      </div>`).join('');
+    document.getElementById('dlqList').innerHTML = html;
+  } catch (e) {
+    document.getElementById('dlqList').innerHTML = `<div class="loading" style="color:var(--red)">Error: ${e.message}</div>`;
+  }
+}
+
+async function resolveDLQ(id) {
+  try {
+    await api(`/dlq/${id}/resolve`, { method: 'POST' });
+    toast('DLQ entry resolved');
+    loadDLQ(); pollStats();
+  } catch (e) { toast(e.message, true); }
+}
+
+// ── Send log ──────────────────────────────────────────────────────────────────
+async function sendLog() {
+  const payload = {
+    service_name: document.getElementById('fService').value,
+    level       : document.getElementById('fLevel').value,
+    message     : document.getElementById('fMessage').value,
+    environment : document.getElementById('fEnv').value,
+    trace_id    : document.getElementById('fTraceId').value || undefined,
+    metadata    : { request_id: 'req-demo-' + Date.now(), source: 'dashboard' },
+  };
+  const box = document.getElementById('sendResponse');
+  box.style.display = 'block';
+  box.textContent = 'Sending…';
+  try {
+    const r = await api('/logs', { method: 'POST', body: JSON.stringify(payload) });
+    box.textContent = `✓ ${JSON.stringify(r, null, 2)}`;
+    box.style.color = 'var(--green)';
+    toast('Log sent — check Live Logs tab in ~2s');
+    pollStats();
+  } catch (e) {
+    box.textContent = `✗ ${e.message}`;
+    box.style.color = 'var(--red)';
+    toast(e.message, true);
+  }
+}
+
+function prefillAnomaly() {
+  const examples = [
+    { svc:'payment-service', msg:'CRITICAL: Out of memory — heap exhausted', lvl:'CRITICAL' },
+    { svc:'auth-service',    msg:'Database unavailable — connection refused after 30s', lvl:'ERROR' },
+    { svc:'order-service',   msg:'Deadlock detected in transaction processor', lvl:'ERROR' },
+  ];
+  const ex = examples[Math.floor(Math.random() * examples.length)];
+  document.getElementById('fService').value = ex.svc;
+  document.getElementById('fMessage').value = ex.msg;
+  document.getElementById('fLevel').value   = ex.lvl;
+}
+
+// ── AI Summary ────────────────────────────────────────────────────────────────
+async function loadAISummary() {
+  const w = document.getElementById('aiWindow').value;
+  document.getElementById('aiResult').innerHTML = '<div class="loading">Analysing recent anomalies…</div>';
+  try {
+    const r = await api(`/ai/summarise?since_minutes=${w}`);
+    const cached = r._cached ? ' <span style="font-size:10px;color:var(--muted)">(cached)</span>' : '';
+    const svcTags = (r.affected_services||[]).map(s => `<span class="ai-service-tag">${s}</span>`).join('');
+    const actions = (r.recommended_actions||[]).map(a => `<li>${a}</li>`).join('');
+    const conf = Math.round((r.confidence||0)*100);
+    document.getElementById('aiResult').innerHTML = `
+      <div class="ai-card">
+        <div class="ai-header">
+          <span class="ai-icon">🤖</span>
+          <span class="ai-title">Incident Analysis${cached}</span>
+          <span class="sev-tag sev-${r.severity}">${r.severity}</span>
+        </div>
+        <div class="ai-field"><div class="ai-field-label">Summary</div><div class="ai-field-value" style="font-size:14px;font-weight:500">${r.summary}</div></div>
+        <div class="ai-field"><div class="ai-field-label">Likely Cause</div><div class="ai-field-value">${r.likely_cause}</div></div>
+        <div class="ai-field"><div class="ai-field-label">Affected Services</div><div class="ai-services">${svcTags || '<span style="color:var(--muted)">None detected</span>'}</div></div>
+        <div class="ai-field"><div class="ai-field-label">Recommended Actions</div><ul class="ai-list">${actions}</ul></div>
+        <div class="ai-field">
+          <div class="ai-field-label">AI Confidence ${conf}%</div>
+          <div class="confidence-bar"><div class="confidence-fill" style="width:${conf}%"></div></div>
+          <div style="font-size:11px;color:var(--muted);margin-top:4px">${r.log_count||0} anomaly logs analysed | Generated ${r.generated_at ? fmt(r.generated_at) : 'now'}</div>
+        </div>
+      </div>`;
+  } catch (e) {
+    document.getElementById('aiResult').innerHTML = `<div class="loading" style="color:var(--red)">Error: ${e.message}. Make sure the backend is running.</div>`;
+  }
+}
+
+// ── Demo scenarios ────────────────────────────────────────────────────────────
+const SERVICES = ['payment-service','auth-service','order-service','notification-service','inventory-service'];
+const NORMAL_MSGS = [
+  ['INFO','User login successful'],['INFO','Order #1042 created'],
+  ['INFO','Payment processed: $49.99'],['DEBUG','Cache hit for session'],
+  ['WARN','Response time exceeded 400ms'],['INFO','Email notification sent'],
+];
+const ANOMALY_MSGS = [
+  ['ERROR','Database unavailable — connection pool exhausted'],
+  ['ERROR','Failed to connect to downstream service — timeout after 30s'],
+  ['CRITICAL','Out of memory — heap exhausted, JVM crash imminent'],
+  ['CRITICAL','Deadlock detected in transaction processor'],
+  ['ERROR','Payment gateway authentication failed — invalid API credentials'],
+  ['CRITICAL','Disk space exhausted — write operations failing'],
+];
+
+async function sendOne(svc, level, msg) {
+  try {
+    await api('/logs', { method:'POST', body: JSON.stringify({
+      service_name: svc, level, message: msg,
+      metadata: { demo: true, ts: Date.now() },
+      trace_id: 'trace-demo-' + Math.random().toString(36).slice(2,8)
+    })});
+  } catch {}
+}
+
+async function runScenario(type) {
+  const status = document.getElementById('scenarioStatus');
+  let logs = [];
+  if (type === 'normal') {
+    for (let i = 0; i < 20; i++) {
+      const svc = SERVICES[i % SERVICES.length];
+      const [lvl, msg] = NORMAL_MSGS[i % NORMAL_MSGS.length];
+      logs.push([svc, lvl, msg]);
+    }
+  } else if (type === 'spike') {
+    for (let i = 0; i < 15; i++) {
+      const svc = 'payment-service';
+      logs.push([svc, 'ERROR', 'Database connection failed — retry ' + i]);
+    }
+    logs.push(['payment-service','CRITICAL','Out of memory — heap exhausted']);
+  } else if (type === 'crisis') {
+    ANOMALY_MSGS.forEach(([lvl,msg]) => logs.push([SERVICES[Math.floor(Math.random()*SERVICES.length)], lvl, msg]));
+    for (let i=0;i<5;i++) logs.push(['payment-service','ERROR','Cascade failure from upstream dependency']);
+  }
+
+  let sent = 0;
+  status.textContent = `Sending 0/${logs.length}…`;
+  for (const [svc,lvl,msg] of logs) {
+    await sendOne(svc,lvl,msg);
+    sent++;
+    status.textContent = `Sending ${sent}/${logs.length}…`;
+    await new Promise(r => setTimeout(r, 120));
+  }
+  status.textContent = `✓ Sent ${sent} logs — check Live Logs in 2-3s`;
+  toast(`${type} scenario sent ${sent} logs`);
+  setTimeout(() => { pollStats(); refreshCharts(); }, 2500);
+}
+
+// ── Auto-refresh ───────────────────────────────────────────────────────────────
+async function tick() {
+  await Promise.all([pollHealth(), pollStats()]);
+  if (currentTab === 'overview')   refreshCharts();
+  if (currentTab === 'logs')       loadLogs();
+  if (currentTab === 'anomalies')  loadAnomalies();
+  if (currentTab === 'alerts')     loadAlerts();
+  if (currentTab === 'dlq')        loadDLQ();
+}
+
+// ── Boot ───────────────────────────────────────────────────────────────────────
+(async () => {
+  Chart.defaults.color = '#8b949e';
+  Chart.defaults.borderColor = '#30363d';
+  await tick();
+  refreshTimer = setInterval(tick, 5000);
+})();
+</script>
+</body>
+</html>

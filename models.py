@@ -6,7 +6,7 @@ from datetime import datetime, timezone
 
 from sqlalchemy import (
     Boolean, Column, DateTime, Float, Integer,
-    String, Text, JSON, UUID
+    String, Text, JSON, UUID, UniqueConstraint
 )
 from db.database import Base
 
@@ -66,6 +66,9 @@ class Alert(Base):
 
 class LogMetric(Base):
     __tablename__ = "log_metrics"
+    __table_args__ = (
+        UniqueConstraint("service_name", "level", "bucket", name="uq_log_metrics_service_level_bucket"),
+    )
 
     id            = Column(Integer, primary_key=True, autoincrement=True)
     service_name  = Column(String(100), nullable=False)

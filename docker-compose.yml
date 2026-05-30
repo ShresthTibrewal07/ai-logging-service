@@ -1,12 +1,13 @@
 services:
+
+  # ── Infrastructure ────────────────────────────────────────────────────────────
+
   zookeeper:
     image: confluentinc/cp-zookeeper:7.5.0
     container_name: zookeeper
     environment:
       ZOOKEEPER_CLIENT_PORT: 2181
       ZOOKEEPER_TICK_TIME: 2000
-    ports:
-      - "2181:2181"
     healthcheck:
       test: ["CMD", "nc", "-z", "localhost", "2181"]
       interval: 10s
@@ -65,6 +66,8 @@ services:
       timeout: 5s
       retries: 5
 
+  # ── Application ───────────────────────────────────────────────────────────────
+
   ingestion-service:
     build:
       context: .
@@ -78,9 +81,11 @@ services:
     ports:
       - "8000:8000"
     environment:
-      - KAFKA_BOOTSTRAP_SERVERS=kafka:29092
-      - DATABASE_URL=postgresql://loguser:logpassword@postgres:5432/logsdb
-      - REDIS_URL=redis://redis:6379
+      KAFKA_BOOTSTRAP_SERVERS: kafka:29092
+      DATABASE_URL: postgresql://loguser:logpassword@postgres:5432/logsdb
+      REDIS_URL: redis://redis:6379
+      APP_ENV: development
+      LOG_LEVEL: INFO
     command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
     volumes:
       - .:/app
@@ -97,13 +102,54 @@ services:
       postgres:
         condition: service_healthy
     environment:
-      - KAFKA_BOOTSTRAP_SERVERS=kafka:29092
-      - DATABASE_URL=postgresql://loguser:logpassword@postgres:5432/logsdb
-      - REDIS_URL=redis://redis:6379
+      KAFKA_BOOTSTRAP_SERVERS: kafka:29092
+      DATABASE_URL: postgresql://loguser:logpassword@postgres:5432/logsdb
+      REDIS_URL: redis://redis:6379
+      APP_ENV: development
+      LOG_LEVEL: INFO
     command: python -m app.consumer
     volumes:
       - .:/app
     working_dir: /app
 
+  # ── Observability ─────────────────────────────────────────────────────────────
+
+  prometheus:
+    image: prom/prometheus:v2.51.0
+    container_name: prometheus
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./monitoring/prometheus.yml/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus_data:/prometheus
+    command:
+      - "--config.file=/etc/prometheus/prometheus.yml"
+      - "--storage.tsdb.path=/prometheus"
+      - "--web.console.libraries=/etc/prometheus/console_libraries"
+      - "--web.console.templates=/etc/prometheus/consoles"
+      - "--web.enable-lifecycle"
+    depends_on:
+      - ingestion-service
+
+  grafana:
+    image: grafana/grafana:10.4.0
+    container_name: grafana
+    ports:
+      - "3000:3000"
+    environment:
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: admin
+      GF_AUTH_ANONYMOUS_ENABLED: "true"
+      GF_AUTH_ANONYMOUS_ORG_ROLE: Viewer
+      GF_USERS_DEFAULT_THEME: dark
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./monitoring/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./monitoring/grafana/dashboards:/var/lib/grafana/dashboards:ro
+    depends_on:
+      - prometheus
+
 volumes:
   postgres_data:
+  prometheus_data:
+  grafana_data:

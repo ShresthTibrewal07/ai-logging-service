@@ -35,6 +35,11 @@ class AlertType(str, Enum):
     SERVICE_DOWN   = "SERVICE_DOWN"
 
 
+class ReportChannel(str, Enum):
+    SLACK = "SLACK"
+    EMAIL = "EMAIL"
+
+
 # ── Inbound ─────────────────────────────────────────────────────────────────────
 
 class LogIngest(BaseModel):
@@ -103,6 +108,88 @@ class AlertResponse(BaseModel):
     acknowledged : bool
 
     model_config = {"from_attributes": True}
+
+
+class AlertReportTotals(BaseModel):
+    total_alerts        : int
+    active_alerts       : int
+    acknowledged_alerts : int
+    critical_alerts     : int
+    affected_services   : int
+    anomaly_logs        : int
+    unresolved_dlq      : int
+
+
+class AlertSeverityBreakdown(BaseModel):
+    severity: str
+    count   : int
+
+
+class AlertTypeBreakdown(BaseModel):
+    alert_type: str
+    count     : int
+
+
+class AlertServiceBreakdown(BaseModel):
+    service_name   : str
+    count          : int
+    critical_count : int
+
+
+class AlertTrendPoint(BaseModel):
+    bucket       : datetime
+    total        : int
+    acknowledged : int
+
+
+class AlertReportResponse(BaseModel):
+    generated_at         : datetime
+    window_hours         : int
+    include_acknowledged : bool
+    service_name         : Optional[str]
+    totals               : AlertReportTotals
+    severity_breakdown   : list[AlertSeverityBreakdown]
+    type_breakdown       : list[AlertTypeBreakdown]
+    service_breakdown    : list[AlertServiceBreakdown]
+    hourly_trend         : list[AlertTrendPoint]
+    recent_alerts        : list[AlertResponse]
+    recommendations      : list[str]
+
+
+class AlertReportSendRequest(BaseModel):
+    since_hours         : int = Field(24, ge=1, le=24 * 30)
+    include_acknowledged: bool = False
+    service_name        : Optional[str] = Field(None, max_length=100)
+    recent_limit        : int = Field(10, ge=1, le=50)
+    channels            : list[ReportChannel] = Field(..., min_length=1)
+    subject             : Optional[str] = Field(None, max_length=160)
+
+
+class AlertReportDispatchResponse(BaseModel):
+    subject           : str
+    delivered_channels: list[ReportChannel]
+    skipped_channels  : list[ReportChannel]
+    generated_at      : datetime
+    report            : AlertReportResponse
+
+
+class AlertReportSchedulerStatusResponse(BaseModel):
+    enabled                : bool
+    running                : bool
+    interval_seconds       : int
+    run_on_startup         : bool
+    since_hours            : int
+    include_acknowledged   : bool
+    recent_limit           : int
+    service_name           : Optional[str]
+    subject                : Optional[str]
+    channels               : list[ReportChannel]
+    next_run_at            : Optional[datetime]
+    last_run_at            : Optional[datetime]
+    last_success_at        : Optional[datetime]
+    last_error             : Optional[str]
+    last_delivered_channels: list[ReportChannel]
+    last_skipped_channels  : list[ReportChannel]
 
 
 class MetricPoint(BaseModel):

@@ -133,11 +133,18 @@ def _fire_alert(
 
     # 2. Slack
     if settings.SLACK_WEBHOOK_URL:
-        _send_slack(alert_type, severity, message, metadata)
+        send_slack_notification(
+            title=f"{severity} alert | {alert_type}",
+            message=message,
+            metadata={"severity": str(severity), **metadata},
+        )
 
     # 3. Email
     if settings.SMTP_HOST and settings.ALERT_EMAIL_TO:
-        _send_email(alert_type, severity, message)
+        send_email_notification(
+            subject=f"[{severity}] AI Log Monitor Alert: {alert_type}",
+            body=f"Alert Type : {alert_type}\nSeverity   : {severity}\n\n{message}",
+        )
 
 
 def _score_to_severity(score: float) -> AlertSeverity:
@@ -150,16 +157,30 @@ def _score_to_severity(score: float) -> AlertSeverity:
     return AlertSeverity.LOW
 
 
-def _send_slack(alert_type: str, severity: str, message: str, metadata: dict) -> None:
-    emoji = {"CRITICAL": "🔴", "HIGH": "🟠", "MEDIUM": "🟡", "LOW": "🟢"}.get(severity, "⚪")
+def send_slack_notification(title: str, message: str, metadata: Optional[dict] = None) -> bool:
+    if not settings.SLACK_WEBHOOK_URL:
+        return False
+
+    metadata = metadata or {}
+    severity = str(metadata.get("severity", "INFO")).upper()
+    emoji = {"CRITICAL": "🔴", "HIGH": "🟠", "MEDIUM": "🟡", "LOW": "🟢", "INFO": "🔵"}.get(
+        severity,
+        "⚪",
+    )
+    metadata_lines = []
+    for key, value in metadata.items():
+        if value in (None, "", [], {}):
+            continue
+        metadata_lines.append(f"• {key}: {value}")
+    metadata_block = "\n" + "\n".join(metadata_lines) if metadata_lines else ""
     payload = {
-        "text": f"{emoji} *{severity} ALERT* | `{alert_type}`\n>{message}",
+        "text": f"{emoji} *{title}*\n>{message}{metadata_block}",
         "blocks": [
             {
                 "type": "section",
                 "text": {
                     "type": "mrkdwn",
-                    "text": f"{emoji} *{severity} ALERT* — `{alert_type}`\n>{message}",
+                    "text": f"{emoji} *{title}*\n>{message}{metadata_block}",
                 },
             }
         ],
@@ -167,15 +188,18 @@ def _send_slack(alert_type: str, severity: str, message: str, metadata: dict) ->
     try:
         resp = httpx.post(settings.SLACK_WEBHOOK_URL, json=payload, timeout=5)
         resp.raise_for_status()
-        logger.info("Slack alert sent | status=%d", resp.status_code)
+        logger.info("Slack notification sent | status=%d", resp.status_code)
+        return True
     except Exception as exc:
-        logger.error("Slack alert failed: %s", exc)
+        logger.error("Slack notification failed: %s", exc)
+        return False
 
 
-def _send_email(alert_type: str, severity: str, message: str) -> None:
-    subject = f"[{severity}] AI Log Monitor Alert: {alert_type}"
-    body    = f"Alert Type : {alert_type}\nSeverity   : {severity}\n\n{message}"
-    msg     = MIMEText(body)
+def send_email_notification(subject: str, body: str) -> bool:
+    if not (settings.SMTP_HOST and settings.ALERT_EMAIL_TO):
+        return False
+
+    msg = MIMEText(body)
     msg["Subject"] = subject
     msg["From"]    = settings.SMTP_USER
     msg["To"]      = settings.ALERT_EMAIL_TO
@@ -185,6 +209,8 @@ def _send_email(alert_type: str, severity: str, message: str) -> None:
             server.starttls()
             server.login(settings.SMTP_USER, settings.SMTP_PASSWORD)
             server.sendmail(settings.SMTP_USER, settings.ALERT_EMAIL_TO, msg.as_string())
-        logger.info("Email alert sent to %s", settings.ALERT_EMAIL_TO)
+        logger.info("Email notification sent to %s", settings.ALERT_EMAIL_TO)
+        return True
     except Exception as exc:
-        logger.error("Email alert failed: %s", exc)
+        logger.error("Email notification failed: %s", exc)
+        return False

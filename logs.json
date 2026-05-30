@@ -1,0 +1,117 @@
+{
+  "__inputs": [],
+  "__requires": [],
+  "annotations": { "list": [] },
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 1,
+  "id": null,
+  "links": [],
+  "panels": [
+    {
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": { "defaults": { "color": { "mode": "palette-classic" }, "unit": "short" }, "overrides": [] },
+      "gridPos": { "h": 4, "w": 6, "x": 0, "y": 0 },
+      "id": 1,
+      "options": { "colorMode": "background", "graphMode": "area", "reduceOptions": { "calcs": ["lastNotNull"] } },
+      "title": "Total Logs Ingested",
+      "type": "stat",
+      "targets": [{ "expr": "sum(log_ingested_total)", "legendFormat": "Total", "datasource": { "type": "prometheus" } }]
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": { "defaults": { "color": { "fixedColor": "red", "mode": "fixed" }, "unit": "short" }, "overrides": [] },
+      "gridPos": { "h": 4, "w": 6, "x": 6, "y": 0 },
+      "id": 2,
+      "options": { "colorMode": "background", "graphMode": "area", "reduceOptions": { "calcs": ["lastNotNull"] } },
+      "title": "Anomalies Detected",
+      "type": "stat",
+      "targets": [{ "expr": "sum(log_anomalies_total)", "legendFormat": "Anomalies", "datasource": { "type": "prometheus" } }]
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": { "defaults": { "color": { "fixedColor": "orange", "mode": "fixed" }, "unit": "short" }, "overrides": [] },
+      "gridPos": { "h": 4, "w": 6, "x": 12, "y": 0 },
+      "id": 3,
+      "options": { "colorMode": "background", "graphMode": "none", "reduceOptions": { "calcs": ["lastNotNull"] } },
+      "title": "Active Alerts",
+      "type": "stat",
+      "targets": [{ "expr": "active_alerts_total", "legendFormat": "Alerts", "datasource": { "type": "prometheus" } }]
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": { "defaults": { "color": { "fixedColor": "dark-red", "mode": "fixed" }, "unit": "short" }, "overrides": [] },
+      "gridPos": { "h": 4, "w": 6, "x": 18, "y": 0 },
+      "id": 4,
+      "options": { "colorMode": "background", "graphMode": "none", "reduceOptions": { "calcs": ["lastNotNull"] } },
+      "title": "DLQ Unresolved",
+      "type": "stat",
+      "targets": [{ "expr": "dlq_entries_total", "legendFormat": "DLQ", "datasource": { "type": "prometheus" } }]
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": { "defaults": { "unit": "short" }, "overrides": [] },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 4 },
+      "id": 5,
+      "options": { "legend": { "calcs": [], "displayMode": "list", "placement": "bottom" }, "tooltip": { "mode": "multi" } },
+      "title": "Logs Ingested per Service",
+      "type": "timeseries",
+      "targets": [{ "expr": "sum by (service) (rate(log_ingested_total[1m]) * 60)", "legendFormat": "{{service}}", "datasource": { "type": "prometheus" } }]
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": { "defaults": { "unit": "short", "color": { "fixedColor": "red", "mode": "fixed" } }, "overrides": [] },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 4 },
+      "id": 6,
+      "options": { "legend": { "calcs": [], "displayMode": "list", "placement": "bottom" }, "tooltip": { "mode": "multi" } },
+      "title": "Anomalies Detected Over Time",
+      "type": "timeseries",
+      "targets": [{ "expr": "sum by (service) (rate(log_anomalies_total[1m]) * 60)", "legendFormat": "{{service}}", "datasource": { "type": "prometheus" } }]
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": { "defaults": { "unit": "ms" }, "overrides": [] },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 12 },
+      "id": 7,
+      "options": { "legend": { "calcs": ["mean", "max"], "displayMode": "table", "placement": "bottom" }, "tooltip": { "mode": "multi" } },
+      "title": "Processing Latency (p50 / p95 / p99)",
+      "type": "timeseries",
+      "targets": [
+        { "expr": "histogram_quantile(0.50, rate(log_processing_duration_ms_bucket[1m]))", "legendFormat": "p50", "datasource": { "type": "prometheus" } },
+        { "expr": "histogram_quantile(0.95, rate(log_processing_duration_ms_bucket[1m]))", "legendFormat": "p95", "datasource": { "type": "prometheus" } },
+        { "expr": "histogram_quantile(0.99, rate(log_processing_duration_ms_bucket[1m]))", "legendFormat": "p99", "datasource": { "type": "prometheus" } }
+      ]
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": { "defaults": { "unit": "short" }, "overrides": [] },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 12 },
+      "id": 8,
+      "options": { "legend": { "calcs": [], "displayMode": "list", "placement": "bottom" }, "tooltip": { "mode": "multi" } },
+      "title": "Redis Cache Hits vs Misses",
+      "type": "timeseries",
+      "targets": [
+        { "expr": "rate(redis_cache_hits_total[1m])", "legendFormat": "Hits", "datasource": { "type": "prometheus" } },
+        { "expr": "rate(redis_cache_misses_total[1m])", "legendFormat": "Misses", "datasource": { "type": "prometheus" } }
+      ]
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": { "defaults": { "unit": "short" }, "overrides": [] },
+      "gridPos": { "h": 6, "w": 24, "x": 0, "y": 20 },
+      "id": 9,
+      "options": { "legend": { "calcs": [], "displayMode": "list", "placement": "bottom" }, "tooltip": { "mode": "multi" } },
+      "title": "Kafka Consumer Lag",
+      "type": "timeseries",
+      "targets": [{ "expr": "kafka_consumer_lag", "legendFormat": "Consumer Lag", "datasource": { "type": "prometheus" } }]
+    }
+  ],
+  "refresh": "15s",
+  "schemaVersion": 38,
+  "tags": ["logs", "ai", "kafka"],
+  "time": { "from": "now-1h", "to": "now" },
+  "timepicker": {},
+  "title": "AI Log Monitoring System",
+  "uid": "ai-log-monitor",
+  "version": 1
+}

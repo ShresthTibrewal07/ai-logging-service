@@ -1,0 +1,11 @@
+apiVersion: 1
+
+providers:
+  - name: AI Logging Dashboards
+    orgId: 1
+    folder: AI Logging
+    type: file
+    disableDeletion: false
+    editable: true
+    options:
+      path: /var/lib/grafana/dashboards

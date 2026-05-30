@@ -41,6 +41,17 @@ class Settings(BaseSettings):
     SMTP_PASSWORD    : str = ""
     ALERT_EMAIL_TO   : str = ""
 
+    # ── Scheduled Alert Reporting ─────────────────────────────────────────────
+    REPORT_SCHEDULER_ENABLED             : bool = False
+    REPORT_SCHEDULE_SECONDS              : int = 3600
+    REPORT_SCHEDULE_RUN_ON_STARTUP       : bool = False
+    REPORT_SCHEDULE_SINCE_HOURS          : int = 24
+    REPORT_SCHEDULE_INCLUDE_ACKNOWLEDGED : bool = False
+    REPORT_SCHEDULE_RECENT_LIMIT         : int = 10
+    REPORT_SCHEDULE_CHANNELS             : str = "EMAIL"
+    REPORT_SCHEDULE_SERVICE_NAME         : str = ""
+    REPORT_SCHEDULE_SUBJECT              : str = ""
+
     # ── Phase 2: OpenAI ────────────────────────────────────────────────────────
     OPENAI_API_KEY: str = ""
 
@@ -49,6 +60,24 @@ class Settings(BaseSettings):
 
     # ── Phase 2: DLQ Replay ────────────────────────────────────────────────────
     DLQ_REPLAY_BATCH_MAX: int = 50   # max entries per replay call
+
+    @property
+    def report_schedule_channels(self) -> list[str]:
+        return [
+            channel.strip().upper()
+            for channel in self.REPORT_SCHEDULE_CHANNELS.split(",")
+            if channel.strip()
+        ]
+
+    @property
+    def report_schedule_service_name(self) -> str | None:
+        service_name = self.REPORT_SCHEDULE_SERVICE_NAME.strip()
+        return service_name or None
+
+    @property
+    def report_schedule_subject(self) -> str | None:
+        subject = self.REPORT_SCHEDULE_SUBJECT.strip()
+        return subject or None
 
 
 settings = Settings()
